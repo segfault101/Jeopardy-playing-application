@@ -14,7 +14,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.similarities.BM25Similarity;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.Version;
 
@@ -23,10 +22,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.StringTokenizer;
+
 
 public class WIkiIndexer {
 	public static void main(String[] args) throws IOException, ParseException {
@@ -102,22 +98,12 @@ public class WIkiIndexer {
 //		}
 		
 	}
+	
 
-//	private static boolean isDirEmpty(File FILE_DIR) 
-//	{
-//		 try(DirectoryStream<Path> dirStream = Files.newDirectoryStream(FILE_DIR.toPath())) 
-//		 {
-//			 return !dirStream.iterator().hasNext();
-//		 }
-//		 catch(Exception e)
-//		 {
-//			 e.printStackTrace();
-//			 return false;
-//		 }
-//	}
-
+	
+	
 	private static void indexDocsInFile(File file, IndexWriter w) throws FileNotFoundException, IOException {
-//		File file = new File(FILE_PATH);
+		
 		BufferedReader br = new BufferedReader(new FileReader(file));
 
 		TextField content = new TextField("","",Field.Store.NO);		//	Did this to prevent an extra comparison operation for each line
@@ -143,10 +129,7 @@ public class WIkiIndexer {
 				
 				//update the title to the new doc's
 				title = new StringField("title", line.substring(2, line.length()-2), Field.Store.YES);
-				
-				if(title.equals("Bob Young"))
-					System.out.println("Found the faggot");
-				
+								
 				//empty the tempContent buffer
 				tempContent = "";
 				
@@ -161,7 +144,9 @@ public class WIkiIndexer {
 						
 		}
 		
-//		System.out.println(tempContent);				
+//		System.out.println(tempContent);	
+		
+		br.close();
 	}
-
+	
 }
