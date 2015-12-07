@@ -1,4 +1,14 @@
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.core.LowerCaseFilter;
+import org.apache.lucene.analysis.core.StopFilter;
+import org.apache.lucene.analysis.en.EnglishAnalyzer;
+import org.apache.lucene.analysis.en.EnglishPossessiveFilter;
+import org.apache.lucene.analysis.en.PorterStemFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.standard.StandardFilter;
+import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
@@ -7,6 +17,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.IndexSearcher;
@@ -22,6 +33,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.Reader;
 
 
 public class WIkiIndexer {
@@ -31,14 +43,14 @@ public class WIkiIndexer {
 //		System.out.println("Enter absolute file path:");
 //		String FILE_PATH = System.console().readLine();
 		
-		String querystr =  "red hat"; //"\"from retrieval\"~4";
+		String querystr =  "the international electrotechnical commission";
 //		System.out.println("Enter query :");
 //		String querystr = System.console().readLine();
 		
 		int useExistingIndex = 0;
 		
 		// Specify the analyzer for tokenizing text when indexing and searching
-		StandardAnalyzer analyzer = new StandardAnalyzer(Version.LUCENE_40);
+		Analyzer analyzer = createAnalyzer();//new EnglishAnalyzer(Version.LUCENE_40);
 		
 		//specify index location
 		File indexFile = new File("./tmp/index"); 
@@ -64,10 +76,12 @@ public class WIkiIndexer {
 
 		// the "content" arg specifies the default field to use
 		// when no field is explicitly specified in the query.
-		Query q = new QueryParser(Version.LUCENE_40, "content", analyzer).parse(querystr);
+		MultiFieldQueryParser queryParser = new MultiFieldQueryParser(Version.LUCENE_40, new String[] {"categories", "content"}, analyzer);
+		Query q = queryParser.parse(querystr);
+
 
 		// search
-		int hitsPerPage = 20;
+		int hitsPerPage = 30;
 		IndexReader reader = DirectoryReader.open(index);
 		IndexSearcher searcher = new IndexSearcher(reader);
 
@@ -87,7 +101,6 @@ public class WIkiIndexer {
 			System.out.println((i + 1) + ". " + d.get("title") + "\t" + " Score: " + score);
 		}
 
-		// reader can only be closed when there
 		// is no need to access the documents any more.
 		reader.close();
 		
@@ -98,47 +111,86 @@ public class WIkiIndexer {
 //		}
 		
 	}
-	
 
 	
 	
+	private static Analyzer createAnalyzer() {
+		Analyzer analyzer = new Analyzer() {
+			  @Override
+			   protected TokenStreamComponents createComponents(String fieldName, Reader reader) {
+				 
+				  Version ver = Version.LUCENE_40;
+			     
+				 Tokenizer source = new StandardTokenizer(ver, reader);
+			     TokenStream result = new StandardFilter(ver, source);
+			     
+			     result = new EnglishPossessiveFilter(ver, result);
+			     result = new LowerCaseFilter(ver, result);
+			     result = new StopFilter(ver, result, StandardAnalyzer.STOP_WORDS_SET);
+			     result = new PorterStemFilter(result);
+			     
+			     return new TokenStreamComponents(source, result);
+			   }
+			 };
+		return analyzer;
+		
+	}
+
+
+
 	private static void indexDocsInFile(File file, IndexWriter w) throws FileNotFoundException, IOException {
 		
 		BufferedReader br = new BufferedReader(new FileReader(file));
 
 		TextField content = new TextField("","",Field.Store.NO);		//	Did this to prevent an extra comparison operation for each line
+		TextField categories = new TextField("", "", Field.Store.NO);
 		StringField title = new StringField("","",Field.Store.NO);
+		
 		String tempContent = "";
+		String tempCategories = "";
 		
 		for(String line; (line = br.readLine())!=null;)
 		{
 
 			//if the line contains [[ it must be the title of a wiki article
 			//store the prev doc and update the title
-			if(line.contains("[["))
+			if(line.startsWith("[[") && line.endsWith("]]"))
 			{
+
+				// INDEX THE PREV DOC
+								
 				//store the prev doc
 				Document doc = new Document();
+				
+				categories = new TextField("categories", tempCategories, Field.Store.YES);
+				categories.setBoost(2.0f);	//categories act as tier 1
+				
 				content = new TextField("content", tempContent, Field.Store.YES);				
+				
 				doc.add(title);
-				doc.add(content);
+				doc.add(categories);
+				doc.add(content);				
 				
 				//index prev doc
 				w.addDocument(doc);
 				
 				
-				//update the title to the new doc's
+				
+				// UPDATE TITLE AND AUX VARS
+
 				title = new StringField("title", line.substring(2, line.length()-2), Field.Store.YES);
 								
-				//empty the tempContent buffer
 				tempContent = "";
-				
+				tempCategories = "";
 			}
 			
 			else
 			{
-				//if the line doesn't contains '==' i.e. subsection titles or is not empty, store it 
-				if(!line.contains("==") && !line.equals(""))
+				
+				if(line.startsWith("CATEGORIES:"))
+					tempCategories += line;
+				
+				else
 					tempContent += line;
 			}
 						
