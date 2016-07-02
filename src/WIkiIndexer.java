@@ -3,7 +3,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.core.StopFilter;
-import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.en.EnglishPossessiveFilter;
 import org.apache.lucene.analysis.en.PorterStemFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -19,7 +18,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.ParseException;
-import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -34,68 +32,302 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.Reader;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Map;
-import java.util.StringTokenizer;
+import java.util.List;
 
 
 public class WIkiIndexer {
 	public static void main(String[] args) throws IOException, ParseException {
 
-		File FILE_DIR = new File("D:\\Desktop\\IR docs\\wiki-subset-20140602\\");
+		System.out.println("Important! When you want to turn on and off stemming or lemmatization or both, delete the \"tmp\" folder in the current directory before running the program.");
+		System.out.println("Note: This is not required when changing other settings like SIMILIARITY and MODE and NUMBER_OF_RESULTS ");
+
+		//TODO specify wiki directory
+		System.out.println("\nEnter absolute file path of the wiki-subset-20140602 folder : ");
+		String FILE_PATH = System.console().readLine();
+		File FILE_DIR = new File(FILE_PATH); //new File(".\\wiki-subset-20140602\\");
+
+		File indexFileFolder = new File("./tmp/index"); 
+
 //		System.out.println("Enter absolute file path:");
 //		String FILE_PATH = System.console().readLine();
 
+		int ENABLE_BENCHMARK_MODE = 0;	// default is 0
+		System.out.println("Choose Mode: 1-Benchmanrk  2-Retrieval : ");
+		String m = System.console().readLine();
+		if(Integer.parseInt(m) == 1)
+			ENABLE_BENCHMARK_MODE = 1;
+		else if (Integer.parseInt(m) == 2)
+			ENABLE_BENCHMARK_MODE = 0;
+
+
+		int ENABLE_STEMMING =1;			// default is on
+		System.out.println("Stermming: 1-ON 2-OFF : ");
+		String s = System.console().readLine();
+		if(Integer.parseInt(s) == 1)
+			ENABLE_STEMMING = 1;
+		else if (Integer.parseInt(s) == 2)
+			ENABLE_STEMMING = 0;
+
+
+		int ENABLE_LEMMATIZATION =0;	//default is off
+		System.out.println("Lemmatization: 1-ON 2-OFF : ");
+		String l = System.console().readLine();
+		if(Integer.parseInt(l) == 1)
+			ENABLE_LEMMATIZATION = 1;
+		else if (Integer.parseInt(l) == 2)
+			ENABLE_LEMMATIZATION = 0;
+
+
+		int ENABLE_BM25 =0;				//default is off
+		System.out.println("Change Similarity to BM25: 1-YES 2-NO : ");
+		String b = System.console().readLine();
+		if(Integer.parseInt(b) == 1)
+			ENABLE_BM25 = 1;
+		else if (Integer.parseInt(b) == 2)
+			ENABLE_BM25 = 0;
+		
+	
+		
+		int NUMBER_OF_RESULTS_FOR_RETRIEVAL = 1;	//default 1
+		System.out.println("Number of results to retrieve: ");
+		String n = System.console().readLine();
+		NUMBER_OF_RESULTS_FOR_RETRIEVAL = Integer.parseInt(n);
+		
+		/*
+		 * CREATE COMPONENTS
+		 */
 		//create lemmatizer
 		StanfordLemmatizer lemmatizer = new StanfordLemmatizer();
+		
+		Analyzer analyzer;
 
-//		System.out.println("Enter query :");
-//		String querystr = System.console().readLine();
+		// Specify the analyzer for tokenizing text when indexing and searching
+		if(ENABLE_STEMMING == 1)
+			analyzer = createStemAnalyzer();//new EnglishAnalyzer(Version.LUCENE_40);
+		else
+			analyzer = createNoStemAnalyzer();
 
-		String clue = "Daniel Hertzberg & James B. Stewart of this paper shared a 1988 Pulitzer for their stories about insider trading";
-		String category = "NEWSPAPERS";
-
-		//lemmatize the parts of query
-		clue = lemmatizer.lemmatize(clue);
-		category = lemmatizer.lemmatize(category);
+		//create reader
+		IndexReader reader = null; 
 		
-		//concat to form query string
-		String querystr = clue + " " + category ;
-
-		
-		//construct a term to boost map to use with multifield query parser
-		Map<String, Float> boostMap = new HashMap<String, Float>();
-		
-		StringTokenizer catTokens = new StringTokenizer(category);
-		
-		while(catTokens.hasMoreTokens())
-			boostMap.put(catTokens.nextToken(), 1.2f);
-		
-		StringTokenizer clueTokens = new StringTokenizer(clue);
-
-		while(clueTokens.hasMoreTokens())
-			boostMap.put(clueTokens.nextToken(), 1.0f);
-		
+		//create searcher;
+		IndexSearcher searcher;
 		
 		//flag
-		int useExistingIndex = 0;
-		
-		// Specify the analyzer for tokenizing text when indexing and searching
-		Analyzer analyzer = createAnalyzer();//new EnglishAnalyzer(Version.LUCENE_40);
-		
-		//specify index location
-		File indexFile = new File("./tmp/index"); 
+		int useExistingIndex = 0;				
 				
 		//check if index already exists and set flag
-		if(indexFile.list() != null)
+		if(indexFileFolder.list() != null)
 			useExistingIndex = 1;
 		
 		// load the index or create it if it doesn't exist
-		FSDirectory index = FSDirectory.open(indexFile);
+		FSDirectory index = FSDirectory.open(indexFileFolder);
 
 		IndexWriterConfig config = new IndexWriterConfig(Version.LUCENE_40, analyzer);
 		IndexWriter w = new IndexWriter(index, config);
+	
+		
+		
+		/*
+		 * Begin Selected Mode
+		 */
+		
+		if(ENABLE_BENCHMARK_MODE == 1)
+			beginBenchmarkMode(FILE_DIR, ENABLE_LEMMATIZATION, ENABLE_BM25, lemmatizer, analyzer, reader,
+					useExistingIndex, index, w);
+		else
+			beginRetrievalMode(FILE_DIR, ENABLE_LEMMATIZATION, ENABLE_BM25, lemmatizer, analyzer, reader,
+					useExistingIndex, index, w, NUMBER_OF_RESULTS_FOR_RETRIEVAL);
+		
+
+	}
+
+	private static void beginBenchmarkMode(File FILE_DIR, int ENABLE_LEMMATIZATION, int ENABLE_BM25,
+			StanfordLemmatizer lemmatizer, Analyzer analyzer, IndexReader reader, int useExistingIndex,
+			FSDirectory index, IndexWriter w)
+					throws IOException, FileNotFoundException, ParseException {
+
+		//to count the hits
+		int hitCount = 0;
+		
+		double R_Prec = 0.0d;
+		
+		//TODO read queries from the SPECIFIED file
+		File queries;
+		System.out.println("Enter absolute path of the queries' text file : ");
+		String qf = System.console().readLine();
+		queries = new File(qf);
+		
+		BufferedReader queriesFileReader = new BufferedReader(new FileReader(queries));
+		
+		IndexSearcher searcher;
+		String clue;
+		String category;
+		List<String> answers;
+		String querystr;
+		String line = new String();
+		while((line = queriesFileReader.readLine())!=null)
+		{
+			if(!line.equals(""))
+			{			
+				category = line.replaceAll("[^A-Za-z ]+", " ");
+				clue = queriesFileReader.readLine().replaceAll("[^A-Za-z ]+", " ");
+				answers = Arrays.asList(queriesFileReader.readLine().split("\\|"));
+
+				//lemmatize the parts of query
+				if(ENABLE_LEMMATIZATION == 1)
+				{					
+					clue = lemmatizer.lemmatize(clue);
+					category = lemmatizer.lemmatize(category);
+				}
+
+				//concat to form query string
+				querystr = clue + " " + category ;
+
+
+				//construct a term to boost map to use with multifield query parser
+				HashMap<String, Float> boostMap = new HashMap<String, Float>();
+				
+				boostMap.put("categories", 7.5f);	//best 7.5 nl-ns
+				boostMap.put("content", 17.5f);		//best 17.5 nl-ns
+
+
+				// if an index doesnt already exists 
+				// index the docs of files in specified directory
+				if(useExistingIndex == 0)
+					for(File f : FILE_DIR.listFiles())
+					{
+						System.out.println("Processing File : "+ f.toString());
+						indexDocsInFile(f, w, lemmatizer, ENABLE_LEMMATIZATION);
+						useExistingIndex = 1;
+					}			
+				//close index writer
+				w.close();
+
+				// the "content" arg specifies the default field to use
+				// when no field is explicitly specified in the query.
+
+				MultiFieldQueryParser queryParser = new MultiFieldQueryParser(Version.LUCENE_40, new String[] {"categories", "content"}, analyzer, boostMap);
+				Query q = queryParser.parse(querystr);
+
+
+				// search
+				int HITS_PER_PAGE = 1;	//best 5
+				reader = DirectoryReader.open(index);
+				searcher = new IndexSearcher(reader);
+
+				// CHANGED THE SIMILIARITY
+				if(ENABLE_BM25 == 1)
+					searcher.setSimilarity(new BM25Similarity());
+
+				TopScoreDocCollector collector = TopScoreDocCollector.create(HITS_PER_PAGE, true);
+				searcher.search(q, collector);
+				ScoreDoc[] hits = collector.topDocs().scoreDocs;
+
+				//CALC : P@1				
+				for(int i=0;i<hits.length;++i) 
+				{
+					int docId = hits[i].doc;
+					float score = hits[i].score;
+					Document d = searcher.doc(docId);
+
+					for(String answer: answers)
+						if(d.get("title").equalsIgnoreCase(answer))
+						{
+							hitCount++;					
+							break;
+						}
+				}
+				
+				
+				collector = TopScoreDocCollector.create(answers.size(), true);
+				searcher.search(q, collector);
+				hits = collector.topDocs().scoreDocs;
+
+				//CALC : R_Prec				
+				for(int i=0;i<answers.size();++i)
+				{
+					int docId = hits[i].doc;
+					float score = hits[i].score;
+					Document d = searcher.doc(docId);
+					
+					int localCount = 0;
+
+					for(String answer: answers)
+						if(d.get("title").equalsIgnoreCase(answer))
+						{
+							localCount++;					
+							break;
+						}
+					
+					R_Prec += (double)localCount/(double)answers.size();
+					
+				}
+				
+				
+			}
+			
+
+		}
+		
+		System.out.println(/*"The answer: " + answer + */"P@1 :" + hitCount /*" out of 100 " + "\t Score : " + score */ );
+		System.out.println(/*"The answer: " + answer + */"R_Precision :" + R_Prec /*" out of 100 " + "\t Score : " + score */ );
+		
+		reader.close();
+	}
+
+
+
+	private static void beginRetrievalMode(File FILE_DIR, int ENABLE_LEMMATIZATION, int ENABLE_BM25,
+			StanfordLemmatizer lemmatizer, Analyzer analyzer, IndexReader reader, int useExistingIndex,
+			FSDirectory index, IndexWriter w, int NUMBER_OF_RESULTS_FOR_RETRIEVAL) 
+					throws IOException, FileNotFoundException, ParseException {
+
+		
+
+//		float score = 0.0f;
+				
+		IndexSearcher searcher;
+
+		//take input from console
+
+		String category; // = "GOLDEN GLOBE WINNERS";
+		System.out.println("Enter the category : ");
+		category = System.console().readLine();
+
+		
+		String clue; 	//= "In 2010: As Sherlock Holmes on film";
+		System.out.println("Enter the clue : ");
+		clue = System.console().readLine();
+		
+		
+		
+		
+		String querystr;
+		String line = new String();
+
+		category = line.replaceAll("[^A-Za-z ]+", " ");
+		clue = clue.replaceAll("[^A-Za-z ]+", " ");
+		//			answers = Arrays.asList(queriesFileReader.readLine().split("\\|"));
+
+		//lemmatize the parts of query
+		if(ENABLE_LEMMATIZATION == 1)
+		{					
+			clue = lemmatizer.lemmatize(clue);
+			category = lemmatizer.lemmatize(category);
+		}
+
+		//concat to form query string
+		querystr = clue + " " + category ;
+
+
+		//construct a term to boost map to use with multifield query parser
+		HashMap<String, Float> boostMap = new HashMap<String, Float>();
+
+		boostMap.put("categories", 7.5f);	//best 7.5 nl-ns
+		boostMap.put("content", 17.5f);		//best 17.5 nl-ns
 
 
 		// if an index doesnt already exists 
@@ -104,54 +336,50 @@ public class WIkiIndexer {
 			for(File f : FILE_DIR.listFiles())
 			{
 				System.out.println("Processing File : "+ f.toString());
-				indexDocsInFile(f, w, lemmatizer);
-			}
-
+				indexDocsInFile(f, w, lemmatizer, ENABLE_LEMMATIZATION);
+				useExistingIndex = 1;
+			}			
 		//close index writer
 		w.close();
 
 		// the "content" arg specifies the default field to use
 		// when no field is explicitly specified in the query.
-		
-		MultiFieldQueryParser queryParser = new MultiFieldQueryParser(Version.LUCENE_40, new String[] {"categories", "content"}, analyzer, boostMap); //, boostMap );
+
+		MultiFieldQueryParser queryParser = new MultiFieldQueryParser(Version.LUCENE_40, new String[] {"categories", "content"}, analyzer, boostMap);
 		Query q = queryParser.parse(querystr);
 
 
 		// search
-		int hitsPerPage = 30;
-		IndexReader reader = DirectoryReader.open(index);
-		IndexSearcher searcher = new IndexSearcher(reader);
+		int hitsPerPage = NUMBER_OF_RESULTS_FOR_RETRIEVAL;	//best 5
+		reader = DirectoryReader.open(index);
+		searcher = new IndexSearcher(reader);
 
 		// CHANGED THE SIMILIARITY
-		searcher.setSimilarity(new BM25Similarity());
+		if(ENABLE_BM25 == 1)
+			searcher.setSimilarity(new BM25Similarity());
 
 		TopScoreDocCollector collector = TopScoreDocCollector.create(hitsPerPage, true);
 		searcher.search(q, collector);
 		ScoreDoc[] hits = collector.topDocs().scoreDocs;
 
-		// display results
 		System.out.println("Found " + hits.length + " hits.");
-		for(int i=0;i<hits.length;++i) {
+		for(int i=0;i<hits.length;++i) 
+		{
 			int docId = hits[i].doc;
 			float score = hits[i].score;
 			Document d = searcher.doc(docId);
 			System.out.println((i + 1) + ". " + d.get("title") + "\t" + " Score: " + score);
 		}
 
-		// is no need to access the documents any more.
-		reader.close();
+//		System.out.println(/*"The answer: " + answer + */" Hit count : " + hitCount +" out of 100 " + "\t Score : " + score );
+	
+	reader.close();
 		
-		//clean up
-//		for(File f: indexFile.listFiles())
-//		{
-//			Files.delete(f.toPath());
-//		}
 		
 	}
-
 	
 	
-	private static Analyzer createAnalyzer() {
+	private static Analyzer createNoStemAnalyzer() {
 		Analyzer analyzer = new Analyzer() {
 			  @Override
 			   protected TokenStreamComponents createComponents(String fieldName, Reader reader) {
@@ -164,6 +392,28 @@ public class WIkiIndexer {
 			     result = new EnglishPossessiveFilter(ver, result);
 			     result = new LowerCaseFilter(ver, result);
 			     result = new StopFilter(ver, result, StandardAnalyzer.STOP_WORDS_SET);
+			     			     
+			     return new TokenStreamComponents(source, result);
+			   }
+			 };
+		return analyzer;
+		
+	}
+	
+	private static Analyzer createStemAnalyzer() {
+		Analyzer analyzer = new Analyzer() {
+			  @Override
+			   protected TokenStreamComponents createComponents(String fieldName, Reader reader) {
+				 
+				  Version ver = Version.LUCENE_40;
+			     
+				 Tokenizer source = new StandardTokenizer(ver, reader);
+			     TokenStream result = new StandardFilter(ver, source);
+			     
+			     result = new EnglishPossessiveFilter(ver, result);
+			     result = new LowerCaseFilter(ver, result);
+			     result = new StopFilter(ver, result, StandardAnalyzer.STOP_WORDS_SET);
+			     
 			     result = new PorterStemFilter(result);
 			     
 			     return new TokenStreamComponents(source, result);
@@ -175,7 +425,7 @@ public class WIkiIndexer {
 
 
 
-	private static void indexDocsInFile(File file, IndexWriter w, StanfordLemmatizer lemmatizer) throws FileNotFoundException, IOException {
+	private static void indexDocsInFile(File file, IndexWriter w, StanfordLemmatizer lemmatizer, int ENABLE_LEMMATIZATION) throws FileNotFoundException, IOException {
 		
 		BufferedReader br = new BufferedReader(new FileReader(file));
 
@@ -185,7 +435,7 @@ public class WIkiIndexer {
 		
 		String tempContent = "";
 		String tempCategories = "";
-		
+				
 		for(String line; (line = br.readLine())!=null;)
 		{
 
@@ -198,11 +448,21 @@ public class WIkiIndexer {
 								
 				//store the prev doc
 				Document doc = new Document();
-								
-				categories = new TextField("categories", lemmatizer.lemmatize(tempCategories), Field.Store.YES);
-				categories.setBoost(1.2f);	//categories act as tier 1
 				
-				content = new TextField("content", lemmatizer.lemmatize(tempContent), Field.Store.YES);				
+				
+				if(ENABLE_LEMMATIZATION == 1)
+					categories = new TextField("categories", lemmatizer.lemmatize(tempCategories), Field.Store.YES);
+				else
+					categories = new TextField("categories", tempCategories, Field.Store.YES);
+				
+				categories.setBoost(1.2f);
+				
+				
+				if(ENABLE_LEMMATIZATION == 1)
+					content = new TextField("content", lemmatizer.lemmatize(tempContent), Field.Store.YES);				
+				else
+					content = new TextField("content", tempContent, Field.Store.YES);				
+				
 				
 				doc.add(title);
 				doc.add(categories);
@@ -228,12 +488,15 @@ public class WIkiIndexer {
 					tempCategories += " " +line;
 				
 				else
+				{
+					line.replaceAll("#REDIRECT", " ");					
 					tempContent += " " + line;
+					
+				}
 			}
 						
 		}
 		
-
 		br.close();
 	}
 	
