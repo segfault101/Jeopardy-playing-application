@@ -10,13 +10,15 @@ import edu.stanford.nlp.pipeline.Annotation;
 import edu.stanford.nlp.pipeline.StanfordCoreNLP;
 import edu.stanford.nlp.util.CoreMap;
 
-public class StanfordLemmatizer {
+public class StanfordLemmatizer 
+{
 
-	PrintStream err = System.err;
+    PrintStream err = System.err;
 	
     protected StanfordCoreNLP pipeline;
 
-    public StanfordLemmatizer() {
+    public StanfordLemmatizer() 
+    {
         // Create StanfordCoreNLP object properties, with POS tagging
         // (required for lemmatization), and lemmatization
         Properties props;
@@ -28,9 +30,7 @@ public class StanfordLemmatizer {
     }
 
     public String lemmatize(String documentText)
-    {
-//    	System.out.println("Before lemming: "+ documentText);
-    	
+    {   	
         String lemmas = new String();
         // Create an empty Annotation just with the given text
         Annotation document = new Annotation(documentText);
@@ -38,16 +38,16 @@ public class StanfordLemmatizer {
         this.pipeline.annotate(document);
         // Iterate over all of the sentences found
         List<CoreMap> sentences = document.get(SentencesAnnotation.class);
-        for(CoreMap sentence: sentences) {
+        for(CoreMap sentence: sentences) 
+	{
             // Iterate over all tokens in a sentence
-            for (CoreLabel token: sentence.get(TokensAnnotation.class)) {
+            for (CoreLabel token: sentence.get(TokensAnnotation.class)) 
+	    {
                 // Retrieve and add the lemma for each word into the
                 // list of lemmas
                 lemmas += " " + token.get(LemmaAnnotation.class);
             }
         }
-        
-//        System.out.println("After lemming: "+ lemmas);
         
         return lemmas;
     }
