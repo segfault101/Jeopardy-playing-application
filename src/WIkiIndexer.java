@@ -37,23 +37,21 @@ import java.util.HashMap;
 import java.util.List;
 
 
-public class WIkiIndexer {
-	public static void main(String[] args) throws IOException, ParseException {
+public class WIkiIndexer 
+{
+	public static void main(String[] args) throws IOException, ParseException 
+	{
 
 		System.out.println("Important! When you want to turn on and off stemming or lemmatization or both, delete the \"tmp\" folder in the current directory before running the program.");
 		System.out.println("Note: This is not required when changing other settings like SIMILIARITY and MODE and NUMBER_OF_RESULTS ");
 
-		//TODO specify wiki directory
 		System.out.println("\nEnter absolute file path of the wiki-subset-20140602 folder : ");
 		String FILE_PATH = System.console().readLine();
-		File FILE_DIR = new File(FILE_PATH); //new File(".\\wiki-subset-20140602\\");
+		File FILE_DIR = new File(FILE_PATH); 
 
 		File indexFileFolder = new File("./tmp/index"); 
 
-//		System.out.println("Enter absolute file path:");
-//		String FILE_PATH = System.console().readLine();
-
-		int ENABLE_BENCHMARK_MODE = 0;	// default is 0
+		int ENABLE_BENCHMARK_MODE = 0;	// default is off
 		System.out.println("Choose Mode: 1-Benchmanrk  2-Retrieval : ");
 		String m = System.console().readLine();
 		if(Integer.parseInt(m) == 1)
@@ -62,7 +60,7 @@ public class WIkiIndexer {
 			ENABLE_BENCHMARK_MODE = 0;
 
 
-		int ENABLE_STEMMING =1;			// default is on
+		int ENABLE_STEMMING = 1;	// default is on
 		System.out.println("Stermming: 1-ON 2-OFF : ");
 		String s = System.console().readLine();
 		if(Integer.parseInt(s) == 1)
@@ -80,7 +78,7 @@ public class WIkiIndexer {
 			ENABLE_LEMMATIZATION = 0;
 
 
-		int ENABLE_BM25 =0;				//default is off
+		int ENABLE_BM25 =0;		//default is off
 		System.out.println("Change Similarity to BM25: 1-YES 2-NO : ");
 		String b = System.console().readLine();
 		if(Integer.parseInt(b) == 1)
@@ -90,7 +88,7 @@ public class WIkiIndexer {
 		
 	
 		
-		int NUMBER_OF_RESULTS_FOR_RETRIEVAL = 1;	//default 1
+		int NUMBER_OF_RESULTS_FOR_RETRIEVAL = 1;	//default on
 		System.out.println("Number of results to retrieve: ");
 		String n = System.console().readLine();
 		NUMBER_OF_RESULTS_FOR_RETRIEVAL = Integer.parseInt(n);
@@ -98,6 +96,7 @@ public class WIkiIndexer {
 		/*
 		 * CREATE COMPONENTS
 		 */
+
 		//create lemmatizer
 		StanfordLemmatizer lemmatizer = new StanfordLemmatizer();
 		
@@ -147,7 +146,8 @@ public class WIkiIndexer {
 	private static void beginBenchmarkMode(File FILE_DIR, int ENABLE_LEMMATIZATION, int ENABLE_BM25,
 			StanfordLemmatizer lemmatizer, Analyzer analyzer, IndexReader reader, int useExistingIndex,
 			FSDirectory index, IndexWriter w)
-					throws IOException, FileNotFoundException, ParseException {
+					throws IOException, FileNotFoundException, ParseException 
+	{
 
 		//to count the hits
 		int hitCount = 0;
@@ -186,13 +186,11 @@ public class WIkiIndexer {
 				//concat to form query string
 				querystr = clue + " " + category ;
 
-
 				//construct a term to boost map to use with multifield query parser
 				HashMap<String, Float> boostMap = new HashMap<String, Float>();
 				
 				boostMap.put("categories", 7.5f);	//best 7.5 nl-ns
 				boostMap.put("content", 17.5f);		//best 17.5 nl-ns
-
 
 				// if an index doesnt already exists 
 				// index the docs of files in specified directory
@@ -218,7 +216,7 @@ public class WIkiIndexer {
 				reader = DirectoryReader.open(index);
 				searcher = new IndexSearcher(reader);
 
-				// CHANGED THE SIMILIARITY
+				//TODO: CHANGED THE SIMILIARITY
 				if(ENABLE_BM25 == 1)
 					searcher.setSimilarity(new BM25Similarity());
 
@@ -283,34 +281,27 @@ public class WIkiIndexer {
 	private static void beginRetrievalMode(File FILE_DIR, int ENABLE_LEMMATIZATION, int ENABLE_BM25,
 			StanfordLemmatizer lemmatizer, Analyzer analyzer, IndexReader reader, int useExistingIndex,
 			FSDirectory index, IndexWriter w, int NUMBER_OF_RESULTS_FOR_RETRIEVAL) 
-					throws IOException, FileNotFoundException, ParseException {
+					throws IOException, FileNotFoundException, ParseException 
+	{
 
-		
-
-//		float score = 0.0f;
-				
 		IndexSearcher searcher;
 
-		//take input from console
+		//Take input from console
 
-		String category; // = "GOLDEN GLOBE WINNERS";
+		String category; // eg: "GOLDEN GLOBE WINNERS";
 		System.out.println("Enter the category : ");
 		category = System.console().readLine();
 
-		
-		String clue; 	//= "In 2010: As Sherlock Holmes on film";
+		String clue; 	// eg: "In 2010: As Sherlock Holmes on film";
 		System.out.println("Enter the clue : ");
 		clue = System.console().readLine();
-		
-		
-		
 		
 		String querystr;
 		String line = new String();
 
 		category = line.replaceAll("[^A-Za-z ]+", " ");
 		clue = clue.replaceAll("[^A-Za-z ]+", " ");
-		//			answers = Arrays.asList(queriesFileReader.readLine().split("\\|"));
+		//answers = Arrays.asList(queriesFileReader.readLine().split("\\|"));
 
 		//lemmatize the parts of query
 		if(ENABLE_LEMMATIZATION == 1)
@@ -354,7 +345,7 @@ public class WIkiIndexer {
 		reader = DirectoryReader.open(index);
 		searcher = new IndexSearcher(reader);
 
-		// CHANGED THE SIMILIARITY
+		//TODO: CHANGED THE SIMILIARITY
 		if(ENABLE_BM25 == 1)
 			searcher.setSimilarity(new BM25Similarity());
 
@@ -371,7 +362,7 @@ public class WIkiIndexer {
 			System.out.println((i + 1) + ". " + d.get("title") + "\t" + " Score: " + score);
 		}
 
-//		System.out.println(/*"The answer: " + answer + */" Hit count : " + hitCount +" out of 100 " + "\t Score : " + score );
+		//System.out.println(/*"The answer: " + answer + */" Hit count : " + hitCount +" out of 100 " + "\t Score : " + score );
 	
 	reader.close();
 		
@@ -379,53 +370,59 @@ public class WIkiIndexer {
 	}
 	
 	
-	private static Analyzer createNoStemAnalyzer() {
-		Analyzer analyzer = new Analyzer() {
+	private static Analyzer createNoStemAnalyzer() 
+	{
+		Analyzer analyzer = new Analyzer() 
+		{
 			  @Override
-			   protected TokenStreamComponents createComponents(String fieldName, Reader reader) {
+			   protected TokenStreamComponents createComponents(String fieldName, Reader reader) 
+			   {
 				 
-				  Version ver = Version.LUCENE_40;
+				Version ver = Version.LUCENE_40;
 			     
-				 Tokenizer source = new StandardTokenizer(ver, reader);
-			     TokenStream result = new StandardFilter(ver, source);
+				Tokenizer source = new StandardTokenizer(ver, reader);
+			     	TokenStream result = new StandardFilter(ver, source);
 			     
-			     result = new EnglishPossessiveFilter(ver, result);
-			     result = new LowerCaseFilter(ver, result);
-			     result = new StopFilter(ver, result, StandardAnalyzer.STOP_WORDS_SET);
+			     	result = new EnglishPossessiveFilter(ver, result);
+			     	result = new LowerCaseFilter(ver, result);
+			     	result = new StopFilter(ver, result, StandardAnalyzer.STOP_WORDS_SET);
 			     			     
-			     return new TokenStreamComponents(source, result);
+			     	return new TokenStreamComponents(source, result);
 			   }
-			 };
-		return analyzer;
-		
+		};
+		return analyzer;		
 	}
 	
-	private static Analyzer createStemAnalyzer() {
-		Analyzer analyzer = new Analyzer() {
+	private static Analyzer createStemAnalyzer() 
+	{
+		Analyzer analyzer = new Analyzer() 
+		{
 			  @Override
-			   protected TokenStreamComponents createComponents(String fieldName, Reader reader) {
+			   protected TokenStreamComponents createComponents(String fieldName, Reader reader) 
+			   {
 				 
-				  Version ver = Version.LUCENE_40;
+				Version ver = Version.LUCENE_40;
 			     
-				 Tokenizer source = new StandardTokenizer(ver, reader);
-			     TokenStream result = new StandardFilter(ver, source);
+				Tokenizer source = new StandardTokenizer(ver, reader);
+			     	TokenStream result = new StandardFilter(ver, source);
 			     
-			     result = new EnglishPossessiveFilter(ver, result);
-			     result = new LowerCaseFilter(ver, result);
-			     result = new StopFilter(ver, result, StandardAnalyzer.STOP_WORDS_SET);
+			     	result = new EnglishPossessiveFilter(ver, result);
+			     	result = new LowerCaseFilter(ver, result);
+			     	result = new StopFilter(ver, result, StandardAnalyzer.STOP_WORDS_SET);
 			     
-			     result = new PorterStemFilter(result);
+			     	result = new PorterStemFilter(result);
 			     
-			     return new TokenStreamComponents(source, result);
+			     	return new TokenStreamComponents(source, result);
 			   }
-			 };
-		return analyzer;
+		};
 		
+		return analyzer;		
 	}
 
 
 
-	private static void indexDocsInFile(File file, IndexWriter w, StanfordLemmatizer lemmatizer, int ENABLE_LEMMATIZATION) throws FileNotFoundException, IOException {
+	private static void indexDocsInFile(File file, IndexWriter w, StanfordLemmatizer lemmatizer, int ENABLE_LEMMATIZATION) throws FileNotFoundException, IOException 
+	{
 		
 		BufferedReader br = new BufferedReader(new FileReader(file));
 
